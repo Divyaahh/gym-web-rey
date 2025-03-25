@@ -1,0 +1,112 @@
+<div class="calculator-container">
+        <h1>ENERGY CALCULATOR</h1>
+        <p>Price based on the new Energy<br>price cap (October 2022)</p>
+        
+        <div id="message" class="message"></div>
+        
+        <form id="energyForm" action="energy.php" method="POST">
+            <div class="input-box">
+                Enter electricity consumption in Kilowatt<br>Hours (kWhs)
+                <br>
+                <input type="number" id="consumption" name="consumption" placeholder="Enter kWh" step="0.01" required>
+            </div>
+            
+            <div class="button-container">
+                <button type="button" onclick="calculateCost()">Calculate</button>
+            
+            <div class="result" id="result">Cost of electricity is £0</div>
+            
+            <input type="hidden" id="cost" name="cost" value="0">
+            <button type="button" onclick="saveEnergy()">Done</button>
+            </div>
+        </form>
+    </div>
+
+PHP
+
+<?php
+include 'db.php'; 
+session_start();
+
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
+
+function saveEnergyData($consumption, $cost, $userID) {
+    global $connection;
+
+    $stmt = $connection->prepare("INSERT INTO energy (energy_used, energy_cost, userID) VALUES (?, ?, ?)");
+    if (!$stmt) {
+        error_log("Prepare failed: " . $connection->error);
+        return false;
+    }
+
+    $stmt->bind_param("ddi", $consumption, $cost, $userID);
+    return $stmt->execute();
+}
+
+// Handle POST request
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["done"])) {
+    $consumption = isset($_POST["consumption"]) ? (float)$_POST["consumption"] : 0;
+    $cost = isset($_POST["cost"]) ? (float)$_POST["cost"] : 0;
+
+    // Require user to be logged in
+    if (!isset($_SESSION["userID"])) {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'error' => 'User not logged in']);
+        exit;
+    }
+
+    $userID = (int)$_SESSION["userID"];
+
+    // Debug log
+    error_log("Saving: consumption=$consumption, cost=$cost, userID=$userID");
+
+    $result = saveEnergyData($consumption, $cost, $userID);
+
+    header('Content-Type: application/json');
+    echo json_encode(['success' => $result]);
+    exit;
+}
+?>
+
+JS
+// the javascript code for calculating cost
+function calculateCost() {
+    const consumption = parseFloat(document.getElementById('consumption').value);
+    const ratePerKwh = 0.34; // £0.34 per kWh (October 2022 price cap)
+
+    if (!isNaN(consumption)) {
+        const cost = (consumption * ratePerKwh).toFixed(2);
+        document.getElementById('result').textContent = `Cost of electricity is £${cost}`;
+        document.getElementById('cost').value = cost;
+    } else {
+        document.getElementById('result').textContent = 'Cost of electricity is £0';
+        document.getElementById('cost').value = 0;
+    }
+}
+
+// javascript code for saving the data 
+function saveEnergy() {
+    const consumption = document.getElementById('consumption').value;
+    const cost = document.getElementById('cost').value;
+
+    console.log("Sending data:", { consumption, cost });
+
+    // Prepare form data for POST
+    const formData = new FormData();
+    formData.append('consumption', consumption);
+    formData.append('cost', cost);
+   
+    formData.append('done', 'true');
+
+    fetch('energy.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log("Response from server:", data);
+        
+    });
+}
+
