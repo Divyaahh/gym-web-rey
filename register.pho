@@ -1,0 +1,65 @@
+<?php
+session_start();
+require('db.php');
+
+$message = "";
+$signup_success = false;
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    // Check if fields are empty
+    if (empty($_POST['firstname']) || empty($_POST['lastname']) || empty($_POST['username']) || 
+        empty($_POST['email']) || empty($_POST['password'])) {
+        $message = "All fields are required. Please fill in all fields.";
+    } else {
+        $firstname = mysqli_real_escape_string($connection, $_POST['firstname']);
+        $lastname = mysqli_real_escape_string($connection, $_POST['lastname']);
+        $username = mysqli_real_escape_string($connection, $_POST['username']);
+        $email = mysqli_real_escape_string($connection, $_POST['email']);
+        $password = $_POST['password'];
+        
+        // Check if username already exists
+        $check_query = "SELECT * FROM users WHERE username = '$username'";
+        $check_result = mysqli_query($connection, $check_query);
+        
+        if (mysqli_num_rows($check_result) > 0) {
+            $_SESSION['message'] = "Username already exists. Please choose another username.";
+            $_SESSION['message_type'] = "error";
+            header("Location: signup.html");
+            exit();
+        } else {
+            // Check password length
+            if (strlen($password) < 8) {
+                $_SESSION['message'] = "Password must be at least 8 characters long.";
+                $_SESSION['message_type'] = "error";
+                header("Location: signup.html");
+                exit();
+            } else {
+                // Hash password securely using PASSWORD_BCRYPT
+                $hashed_password = password_hash($password, PASSWORD_BCRYPT);
+                
+                // Insert query with firstname and lastname
+                $query = "INSERT INTO `users` (FirstName, LastName, Username, Email, Password) 
+                          VALUES ('$firstname', '$lastname', '$username', '$email', '$hashed_password')";
+                
+                // Execute the query
+                $result = mysqli_query($connection, $query);
+                
+                if ($result) {
+                    $_SESSION['message'] = "You have been signed up successfully! Welcome, $firstname $lastname!";
+                    $_SESSION['message_type'] = "success";
+                    $_SESSION['registered_username'] = $username;
+                    
+                    // You can choose to redirect to login page or a welcome page
+                    header("Location: success.php");
+                    exit();
+                } else {
+                    $_SESSION['message'] = "There was a problem: " . mysqli_error($connection);
+                    $_SESSION['message_type'] = "error";
+                    header("Location: signup.html");
+                    exit();
+                }
+            }
+        }
+    }
+}
+?>
